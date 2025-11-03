@@ -66,19 +66,35 @@ bbb_oas_s = fred_df("BAMLC0A4CBBB")   # BBB OAS
 
 # Make sure they’re numeric and get the latest non-NA value
 def last_float(s):
-    s = pd.to_numeric(s, errors="coerce")
-    s = s.dropna()
-    return float(s.iloc[-1])
+    """
+    Return the latest numeric value from a variety of inputs:
+    - pandas Series (use last non-null)
+    - pandas DataFrame (use 'value' col if present, else last column)
+    - list/iterable
+    - scalar (int/float/str)
+    """
+    try:
+        # pandas Series
+        if isinstance(s, pd.Series):
+            ser = pd.to_numeric(s, errors="coerce").dropna()
+            return float(ser.iloc[-1])
 
-ust10  = last_float(ust_10y)
-ust2   = last_float(ust_2y)
-ust3m  = last_float(ust_3m)
-tips10y = last_float(tips10y_s)
-hy_oas  = last_float(hy_oas_s)
-ig_oas  = last_float(ig_oas_s)
-bbb_oas = last_float(bbb_oas_s)
+        # pandas DataFrame
+        if isinstance(s, pd.DataFrame):
+            col = "value" if "value" in s.columns else s.columns[-1]
+            ser = pd.to_numeric(s[col], errors="coerce").dropna()
+            return float(ser.iloc[-1])
 
-# Spreads (percentage points)
+        # Generic iterable (but not a string/bytes)
+        if hasattr(s, "__iter__") and not isinstance(s, (str, bytes)):
+            ser = pd.to_numeric(pd.Series(list(s)), errors="coerce").dropna()
+            return float(ser.iloc[-1])
+
+        # Scalar (int/float/str)
+        return float(s)
+
+    except Exception as e:
+        raise RuntimeError(f"last_float: could not convert {type(s)} -> {e}")# Spreads (percentage points)
 ten2s = ust10 - ust2      # 10y - 2y
 ten3m = ust10 - ust3m     # 10y - 3m
 # ===== end: load & compute =====    # ----- Traffic-light thresholds (economist/market standards) -----
