@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Macro Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@2/css/pico.min.css">
+  <style>.lights span{padding:.2rem .5rem;border-radius:.4rem;margin-right:.3rem;color:#fff}
+  .green{background:#2e7d32}.yellow{background:#f9a825}.red{background:#c62828}</style>
+</head>
+<body class="container">
+  <h1>Macro Dashboard</h1>
+  <p>If you see this, GitHub Pages is working. Data will appear after the first Action run.</p>
+  <section><h3>Traffic Lights</h3><div id="lights" class="lights"></div></section>
+  <section><h3>Yield Curve Spreads</h3><div id="yc" style="height:420px"></div></section>
+  <section><h3>VIX</h3><div id="vix" style="height:320px"></div></section>
+  <script src="./dashboard.js"></script>
+</body>
+</html>
