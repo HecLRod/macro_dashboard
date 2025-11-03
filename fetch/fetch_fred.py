@@ -54,24 +54,49 @@ def main():
     all_df["YC_10s3m"] = all_df["UST_10Y"] - all_df["UST_3M"]
 
     last = all_df.iloc[-1]
-    snap = {
-        "YC_10s2s": {"value": float(last["YC_10s2s"]), "light": "red" if last["YC_10s2s"] < 0 else "green"},
-        "YC_10s3m": {"value": float(last["YC_10s3m"]), "light": "red" if last["YC_10s3m"] < 0 else "green"},
-    }
-    hy = float(last["HY_OAS"])
-    snap["HY_OAS"] = {"value": hy, "light": "red" if hy >= 6 else ("yellow" if hy >= 4 else "green")}
-    for k in ("IG_OAS", "BBB_OAS"):
-        v = float(last[k])
-        snap[k] = {"value": v, "light": "red" if v >= 2.5 else ("yellow" if v >= 1.5 else "green")}
-    tips = float(last["UST_10Y_TIPS"])
-    snap["UST_10Y_TIPS"] = {"value": tips, "light": "red" if tips >= 2.0 else ("yellow" if tips >= 1.5 else "green")}
+    # ----- Traffic-light thresholds (economist/market standards) -----
+def light_10s2s(x):
+    # 10y - 2y: Green > +0.25, Yellow 0..+0.25, Red < 0
+    return "green" if x > 0.25 else ("yellow" if x >= 0 else "red")
 
-    with open("data/summary.json", "w") as f:
-        json.dump({"as_of": END.isoformat(), "snapshot": snap}, f, indent=2)
+def light_10s3m(x):
+    # 10y - 3m: Green > +0.50, Yellow 0..+0.50, Red < 0
+    return "green" if x > 0.50 else ("yellow" if x >= 0 else "red")
 
-    all_df[["YC_10s2s", "YC_10s3m"]].to_json(
-        "data/yield_curve.json", orient="table", date_format="iso"
-    )
+def light_hy_oas(x):
+    # HY OAS: Green < 4.0, Yellow 4.0..6.0, Red > 6.0
+    return "green" if x < 4.0 else ("yellow" if x <= 6.0 else "red")
 
-if __name__ == "__main__":
-    main()
+def light_ig_oas(x):
+    # IG OAS: Green < 1.25, Yellow 1.25..2.0, Red > 2.0
+    return "green" if x < 1.25 else ("yellow" if x <= 2.0 else "red")
+
+def light_bbb_oas(x):
+    # BBB OAS: Green < 1.5, Yellow 1.5..2.5, Red > 2.5
+    return "green" if x < 1.5 else ("yellow" if x <= 2.5 else "red")
+
+def light_tips10y(x):
+    # 10Y TIPS (real yield): Green 0..1.5, Yellow 1.5..2.0, Red >2.0 or <0
+    if x < 0 or x > 2.0:
+        return "red"
+    return "green" if x <= 1.5 else "yellow"
+
+# ----- Build snapshot for the front-end -----
+snap = {
+    "10s2s":  {"value": round(float(ten2s), 2),  "light": light_10s2s(float(ten2s))},
+    "10s3m":  {"value": round(float(ten3m), 2),  "light": light_10s3m(float(ten3m))},
+    "HY_OAS": {"value": round(float(hy_oas), 2), "light": light_hy_oas(float(hy_oas))},
+    "IG_OAS": {"value": round(float(ig_oas), 2), "light": light_ig_oas(float(ig_oas))},
+    "BBB_OAS":{"value": round(float(bbb_oas),2), "light": light_bbb_oas(float(bbb_oas))},
+    "TIPS10Y":{"value": round(float(tips10y),2), "light": light_tips10y(float(tips10y))}
+}
+
+summary = {
+    "as_of": pd.Timestamp.utcnow().strftime("%Y-%m-%d"),
+    "snapshot": snap
+}
+
+# write summary.json
+os.makedirs("data", exist_ok=True)
+with open("data/summary.json", "w") as f:
+    json.dump(summary, f, indent=2)
