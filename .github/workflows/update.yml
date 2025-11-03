@@ -3,12 +3,18 @@ name: Update data and publish
 on:
   workflow_dispatch:
   schedule:
-    # Morning and early afternoon weekday runs (Mon–Fri).
-    - cron: "15 13,14 * * 1-5"   # around 9:15 AM NY, year-round
-    - cron: "35 17,18 * * 1-5"   # around 1:35 PM NY, year-round
+    - cron: "15 13,14 * * 1-5"   # morning NY (EDT/EST covered by 13Z,14Z)
+    - cron: "35 17,18 * * 1-5"   # early afternoon NY (EDT/EST covered by 17Z,18Z)
 
 permissions:
   contents: write
+
+concurrency:
+  group: macro_dashboard
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   build:
@@ -35,11 +41,15 @@ jobs:
       - name: Fetch VIX (Stooq)
         run: python fetch/fetch_vix_stooq.py
 
-      - name: Commit data artifacts (if changed)
+      - name: Build dashboard HTML
+        run: python scripts/build_dashboard.py
+
+      - name: Commit and push changes (if any)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/*.json || true
+          git add docs/index.html || true
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "Auto-update data: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          git commit -m "Auto-update data & dashboard: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
           git push
