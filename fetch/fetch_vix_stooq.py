@@ -1,5 +1,4 @@
-import os, io, json, time
-from datetime import datetime, timedelta
+import os, io, json
 import pandas as pd
 import requests
 
@@ -10,10 +9,9 @@ def fetch_stooq():
     r = requests.get(url, timeout=20)
     r.raise_for_status()
     text = r.text.strip()
-    # Bail if it's HTML or empty
     if not text or text.lstrip().startswith("<"):
         return None
-    # Try with header; if missing, provide names
+    # try headered, then headerless
     try:
         df = pd.read_csv(io.StringIO(text))
         if "Date" not in df.columns or "Close" not in df.columns:
@@ -32,39 +30,37 @@ def fetch_stooq():
         return None
     return df.set_index("Date")[["Close"]].rename(columns={"Close": "VIX"})
 
-def fetch_yahoo():
-    # Full-range VIX from Yahoo; fallback if Stooq is empty
-    # period1=0 (Unix epoch) to now
-    period1 = 0
-    period2 = int(time.time())
-    url = (
-        "https://query1.finance.yahoo.com/v7/finance/download/%5EVIX"
-        f"?period1={period1}&period2={period2}&interval=1d&events=history&includeAdjustedClose=true"
-    )
-    r = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+def fetch_cboe():
+    # Official CBOE VIX daily history (CSV)
+    url = "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+    r = requests.get(url, timeout=20)
     r.raise_for_status()
     text = r.text.strip()
     if not text or text.lstrip().startswith("<"):
         return None
-    try:
-        df = pd.read_csv(io.StringIO(text))
-    except Exception:
-        return None
+    df = pd.read_csv(io.StringIO(text))
+    # CBOE headers are typically: DATE, OPEN, HIGH, LOW, CLOSE
+    for c in df.columns:
+        if c.strip().lower() == "date":
+            df.rename(columns={c: "Date"}, inplace=True)
+        if c.strip().lower() == "close":
+            df.rename(columns={c: "Close"}, inplace=True)
     if "Date" not in df.columns or "Close" not in df.columns:
         return None
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    # CBOE date format is usually mm/dd/yyyy
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce", infer_datetime_format=True)
     df = df.dropna(subset=["Date"])
     if df.empty:
         return None
     return df.set_index("Date")[["Close"]].rename(columns={"Close": "VIX"})
 
-# Try Stooq first, then Yahoo
+# Try Stooq first (fast), then CBOE (authoritative)
 df = fetch_stooq()
 if df is None or df.empty:
-    df = fetch_yahoo()
+    df = fetch_cboe()
 
 if df is None or df.empty:
-    raise RuntimeError("Unable to fetch VIX from Stooq or Yahoo (empty dataframe).")
+    raise RuntimeError("Unable to fetch VIX from Stooq or CBOE (empty dataframe).")
 
 # Save artifacts
 df.to_json("data/VIX.json", orient="table", date_format="iso")
