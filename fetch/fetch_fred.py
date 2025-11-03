@@ -54,7 +54,34 @@ def main():
     all_df["YC_10s3m"] = all_df["UST_10Y"] - all_df["UST_3M"]
 
     last = all_df.iloc[-1]
-    # ----- Traffic-light thresholds (economist/market standards) -----
+    # ===== Load series and compute latest values =====
+# Raw series (each is a pandas Series indexed by date)
+ust_10y   = fred_df("DGS10")   # 10-year Treasury
+ust_2y    = fred_df("DGS2")    # 2-year Treasury
+ust_3m    = fred_df("DGS3MO")  # 3-month Treasury
+tips10y_s = fred_df("DFII10")  # 10-year TIPS (real yield)
+hy_oas_s  = fred_df("BAMLH0A0HYM2")   # HY OAS
+ig_oas_s  = fred_df("BAMLC0A0CM")     # IG OAS
+bbb_oas_s = fred_df("BAMLC0A4CBBB")   # BBB OAS
+
+# Make sure they’re numeric and get the latest non-NA value
+def last_float(s):
+    s = pd.to_numeric(s, errors="coerce")
+    s = s.dropna()
+    return float(s.iloc[-1])
+
+ust10  = last_float(ust_10y)
+ust2   = last_float(ust_2y)
+ust3m  = last_float(ust_3m)
+tips10y = last_float(tips10y_s)
+hy_oas  = last_float(hy_oas_s)
+ig_oas  = last_float(ig_oas_s)
+bbb_oas = last_float(bbb_oas_s)
+
+# Spreads (percentage points)
+ten2s = ust10 - ust2      # 10y - 2y
+ten3m = ust10 - ust3m     # 10y - 3m
+# ===== end: load & compute =====    # ----- Traffic-light thresholds (economist/market standards) -----
 def light_10s2s(x):
     # 10y - 2y: Green > +0.25, Yellow 0..+0.25, Red < 0
     return "green" if x > 0.25 else ("yellow" if x >= 0 else "red")
