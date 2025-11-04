@@ -1,9 +1,11 @@
+// dashboard.js
+
 async function loadSummary() {
-  // Always fetch fresh JSON (cache buster)
+  // Fetch the latest snapshot (cache-busted)
   const res = await fetch('data/summary.json?_=' + Date.now());
   const { snapshot } = await res.json();
 
-  // Order & pretty labels for pills
+  // Display order + pretty labels
   const order = ["10s2s","10s3m","TIPS10Y","HY_OAS","IG_OAS","BBB_OAS","VIX"];
   const label = {
     "10s2s":  "10s–2s",
@@ -15,7 +17,7 @@ async function loadSummary() {
     "VIX":    "VIX"
   };
 
-  const wrap = document.getElementById('traffic-lights');
+  const wrap = document.getElementById('lights'); // <-- matches your HTML
   wrap.innerHTML = '';
 
   // Render pills that exist in snapshot
@@ -23,18 +25,19 @@ async function loadSummary() {
     if (!snapshot[k]) continue;
     const { value, light } = snapshot[k];
     const pill = document.createElement('span');
-    pill.className = `pill ${light}`;   // needs CSS .pill.green/.yellow/.red
+    // Your CSS already styles ".lights span" and ".green/.yellow/.red"
+    pill.className = light;
     pill.textContent = `${label[k] || k}: ${Number(value).toFixed(2)}`;
     wrap.appendChild(pill);
   }
 
-  // Add VIX from its own file if not provided in summary.json
+  // If VIX isn't in summary.json, try vix_snapshot.json
   if (!snapshot["VIX"]) {
     try {
       const v = await (await fetch('data/vix_snapshot.json?_=' + Date.now())).json();
       if (v && typeof v.value !== 'undefined' && v.light) {
         const pill = document.createElement('span');
-        pill.className = `pill ${v.light}`;
+        pill.className = v.light;
         pill.textContent = `VIX: ${Number(v.value).toFixed(2)}`;
         wrap.appendChild(pill);
       }
@@ -42,8 +45,29 @@ async function loadSummary() {
   }
 }
 
-// run on page load
+async function loadYieldCurve() {
+  // Reads "table" orient JSON written by fetch_fred.py
+  const res = await fetch('data/yield_curve.json?_=' + Date.now());
+  const js = await res.json();               // {schema:..., data:[{index, YC_10s2s, YC_10s3m}, ...]}
+  const rows = js.data || [];
+
+  const x = rows.map(r => new Date(r.index));
+  const y10s2s = rows.map(r => Number(r.YC_10s2s));
+  const y10s3m = rows.map(r => Number(r.YC_10s3m));
+
+  const traces = [
+    { x, y: y10s2s, mode: 'lines', name: '10s–2s' },
+    { x, y: y10s3m, mode: 'lines', name: '10s–3m' }
+  ];
+  const layout = {
+    margin: {l: 40, r: 10, t: 10, b: 30},
+    yaxis: {title: 'pct pts', zeroline: true},
+    xaxis: {showgrid: false}
+  };
+  Plotly.newPlot('yc', traces, layout, {displayModeBar: false, responsive: true});
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadSummary();
-  // keep your other initializers here (e.g., loadYieldCurve(), loadVIXChart(), etc.)
-});  
+  loadYieldCurve();
+});
