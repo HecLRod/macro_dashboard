@@ -156,33 +156,34 @@ pd.concat([yc_10s2s, yc_10s3m], axis=1).to_json(
 # Save summary used by the pills
 with open("data/summary.json", "w") as f:
     # ---- VIX time series from FRED (VIXCLS) ----
+from pathlib import Path
+
 vix_df = fred_df("VIXCLS")
 vix_df["value"] = pd.to_numeric(vix_df["value"], errors="coerce").dropna()
 
-# Write VIX time series for the front-end chart
+# Prepare time series for the front-end
 vix_ts = [
     {"t": idx.strftime("%Y-%m-%d"), "v": float(val)}
     for idx, val in zip(vix_df.index, vix_df["value"])
 ]
-with open("data/VIX.json", "w") as f:
-    json.dump(vix_ts, f)
 
-# Determine color coding for VIX
-def light_vix(x):
-    # Green = calm, Yellow = moderate, Red = high volatility
+# Ensure data/ exists and write files (no 'with' blocks, so no indent pitfalls)
+Path("data").mkdir(exist_ok=True)
+Path("data/VIX.json").write_text(json.dumps(vix_ts))
+
+def light_vix(x: float) -> str:
+    # Green = 10–15, Yellow = 15–24, Red = >=25
     if x >= 25:
         return "red"
-    elif x >= 15:
+    if x >= 15:
         return "yellow"
-    else:
-        return "green"
+    return "green"
 
-# Latest VIX value
 vix_last = float(vix_df["value"].iloc[-1])
+# Add to the snapshot *before* writing summary.json
 snap["VIX"] = {"value": round(vix_last, 2), "light": light_vix(vix_last)}
 
-# Optional fallback snapshot file for dashboard.js
-with open("data/vix_snapshot.json", "w") as f:
-    json.dump({"value": round(vix_last, 2), "light": light_vix(vix_last)}, f)    json.dump(summary, f, indent=2)
-
-print("Wrote data artifacts:", list(SERIES.values()) + ["yield_curve.json", "summary.json"])
+# Optional tiny snapshot file
+Path("data/vix_snapshot.json").write_text(
+    json.dumps({"value": round(vix_last, 2), "light": light_vix(vix_last)})
+)
