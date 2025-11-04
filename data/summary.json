@@ -1,13 +1,13 @@
 {
-  "as_of": "2025-11-03",
+  "as_of": "2025-11-04",
   "snapshot": {
-    "YC_10s2s": {
-      "value": 0.5100000000000002,
+    "10s2s": {
+      "value": 0.51,
       "light": "green"
     },
-    "YC_10s3m": {
-      "value": 0.2200000000000002,
-      "light": "green"
+    "10s3m": {
+      "value": 0.22,
+      "light": "yellow"
     },
     "HY_OAS": {
       "value": 2.94,
@@ -21,7 +21,7 @@
       "value": 1.02,
       "light": "green"
     },
-    "UST_10Y_TIPS": {
+    "TIPS10Y": {
       "value": 1.81,
       "light": "yellow"
     }
