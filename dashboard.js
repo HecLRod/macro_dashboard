@@ -1,5 +1,7 @@
-// dashboard.js (explicit base path for GitHub Pages repo)
-
+// pick "/macro_dashboard" when the page is served under that path; otherwise ""
+const BASE = window.location.pathname.includes('/macro_dashboard/')
+  ? '/macro_dashboard'
+  : '';
 (async function () {
   const BASE = '/macro_dashboard'; // <-- important for GitHub Pages path
   const cacheBust = () => `?_=${Date.now()}`;
