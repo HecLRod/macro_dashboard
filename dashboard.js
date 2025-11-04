@@ -70,4 +70,56 @@ async function loadYieldCurve() {
 document.addEventListener('DOMContentLoaded', () => {
   loadSummary();
   loadYieldCurve();
-});
+  async function loadVIXChart() {
+  try {
+    // Fetch VIX time-series (cache-busted)
+    const res = await fetch('data/VIX.json?_=' + Date.now());
+    const js = await res.json();
+
+    // --- Normalize to a common array of {t, v} ---
+    let rows = [];
+    if (Array.isArray(js)) {
+      // e.g., [{date:"2025-11-01", value: 16.5}, ...] or similar
+      rows = js;
+    } else if (js && Array.isArray(js.data)) {
+      // pandas orient="table" => {schema:..., data:[{index, value or Close/...}]}
+      rows = js.data;
+    } else {
+      console.warn('Unexpected VIX.json format', js);
+    }
+
+    // Try common field names
+    const points = rows.map(r => {
+      const t =
+        r.date ? new Date(r.date) :
+        r.index ? new Date(r.index) :
+        r.t ? new Date(r.t) : null;
+
+      const v =
+        r.value ?? r.close ?? r.Close ?? r.VIX ?? r.v;
+
+      return (t && v != null) ? { t, v: Number(v) } : null;
+    }).filter(Boolean);
+
+    if (!points.length) {
+      throw new Error('No VIX points parsed');
+    }
+
+    // Plot with Plotly
+    Plotly.newPlot('vix', [{
+      x: points.map(p => p.t),
+      y: points.map(p => p.v),
+      mode: 'lines',
+      name: 'VIX'
+    }], {
+      margin: { l: 40, r: 10, t: 10, b: 30 },
+      xaxis: { showgrid: false },
+      yaxis: { title: 'Index' }
+    }, { displayModeBar: false, responsive: true });
+
+  } catch (err) {
+    console.error('VIX chart error:', err);
+    const el = document.getElementById('vix');
+    if (el) el.innerHTML = '<em>VIX data unavailable</em>';
+  }
+}});
