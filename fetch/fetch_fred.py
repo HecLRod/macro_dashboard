@@ -153,8 +153,7 @@ pd.concat([yc_10s2s, yc_10s3m], axis=1).to_json(
     "data/yield_curve.json", orient="table", date_format="iso"
 )
 
-# Save summary used by the pills
-with open("data/summary.json", "w") as f:
+
     # ---- VIX time series from FRED (VIXCLS) ----
 from pathlib import Path
 
