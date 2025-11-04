@@ -1,174 +1,116 @@
-// dashboard.js  — robust loaders + two charts (YC spreads, VIX)
+// dashboard.js (explicit base path for GitHub Pages repo)
 
-async function loadJSON(url) {
-  const res = await fetch(url + '?_=' + Date.now()); // cache-bust
-  if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
-  return res.json();
-}
+(async function () {
+  const BASE = '/macro_dashboard'; // <-- important for GitHub Pages path
+  const cacheBust = () => `?_=${Date.now()}`;
 
-/* ---------------- Traffic Lights ---------------- */
-
-function pillHTML(text, light) {
-  return `<span class="${light}">${text}</span>`;
-}
-
-async function renderLights() {
-  const s = await loadJSON('data/summary.json');
-
-  // Order & labels match your pills
-  const order = ["10s-2s","10s-3m","TIPS10Y","HY_OAS","IG_OAS","BBB_OAS","VIX"];
-  const label = {
-    "10s-2s": "10s–2s",
-    "10s-3m": "10s–3m",
-    "TIPS10Y": "10Y TIPS",
-    "HY_OAS": "HY OAS",
-    "IG_OAS": "IG OAS",
-    "BBB_OAS": "BBB OAS",
-    "VIX": "VIX"
-  };
-
-  const wrap = document.getElementById('lights');
-  wrap.innerHTML = '';
-  for (const k of order) {
-    if (!(k in s.snapshot)) continue;
-    const {value, light} = s.snapshot[k];
-    const pill = document.createElement('span');
-    pill.innerHTML = pillHTML(`${label[k]}: ${Number(value).toFixed(2)}`, light);
-    wrap.appendChild(pill);
-  }
-}
-
-/* ---------------- Yield Curve Spreads ---------------- */
-
-function toTrace(name, xs, ys) {
-  return {
-    x: xs,
-    y: ys,
-    mode: 'lines',
-    name,
-    hovertemplate: '%{x|%Y-%m-%d}: %{y:.2f} pp<extra></extra>'
-  };
-}
-
-async function renderYieldCurve() {
-  const yc = await loadJSON('data/yield_curve.json'); // { "10s2s": [...], "10s3m": [...] }
-
-  // each array element can be {date: "YYYY-MM-DD", value: number}
-  function extract(series) {
-    const x = [];
-    const y = [];
-    for (const p of series || []) {
-      const d = p.date || p.Date;
-      const v = p.value ?? p.Value ?? p.val ?? p.y;
-      if (d != null && v != null && !Number.isNaN(Number(v))) {
-        x.push(d);
-        y.push(Number(v));
-      }
-    }
-    return [x, y];
+  // ---- Load the traffic-light snapshot ----
+  async function loadSummary() {
+    const res = await fetch(`${BASE}/data/summary.json${cacheBust()}`);
+    if (!res.ok) throw new Error('summary.json fetch failed');
+    return res.json();
   }
 
-  const [x1, y1] = extract(yc['10s2s']);
-  const [x2, y2] = extract(yc['10s3m']);
+  // ---- Render traffic-light pills ----
+  function renderPills(snapshot) {
+    const order = ["10s-2s","10s-3m","TIPS10Y","HY_OAS","IG_OAS","BBB_OAS","VIX"];
+    const label = {
+      "10s-2s": "10s–2s",
+      "10s-3m": "10s–3m",
+      "TIPS10Y": "10Y TIPS",
+      "HY_OAS": "HY OAS",
+      "IG_OAS": "IG OAS",
+      "BBB_OAS": "BBB OAS",
+      "VIX": "VIX"
+    };
 
-  const data = [
-    toTrace('10s–2s', x1, y1),
-    toTrace('10s–3m', x2, y2),
-  ];
+    const wrap = document.getElementById('lights');
+    if (!wrap) return;
+    wrap.innerHTML = '';
 
-  Plotly.newPlot('yc', data, {
-    margin: {l: 50, r: 20, t: 10, b: 40},
-    xaxis: {type: 'date'},
-    yaxis: {title: 'pct pts'},
-  }, {displayModeBar: false});
-}
-
-/* ---------------- VIX Chart (robust parser) ---------------- */
-
-function parseVixArray(arr) {
-  // Accept a variety of shapes:
-  // - {date, value}
-  // - {Date, Close}
-  // - {date, close}
-  // - {t, v}
-  const xs = [];
-  const ys = [];
-  for (const row of arr || []) {
-    const d = row.date || row.Date || row.t;
-    const raw =
-      row.value ??
-      row.Value ??
-      row.v ??
-      row.close ??
-      row.Close ??
-      row.adjClose ??
-      row.AdjClose;
-
-    if (d != null && raw != null) {
-      const num = Number(raw);
-      if (!Number.isNaN(num)) {
-        xs.push(d);
-        ys.push(num);
-      }
+    for (const k of order) {
+      if (!(k in snapshot)) continue;
+      const { value, light } = snapshot[k];
+      const pill = document.createElement('span');
+      pill.className = light; // expects .green/.yellow/.red in CSS
+      pill.textContent = `${label[k]}: ${value}`;
+      wrap.appendChild(pill);
     }
   }
-  return [xs, ys];
-}
 
-async function renderVIX() {
-  const panel = document.getElementById('vix');
-  panel.innerHTML = ''; // clear
+  // ---- Load and plot yield-curve spreads ----
+  async function loadYield() {
+    const res = await fetch(`${BASE}/data/yield_curve.json${cacheBust()}`);
+    if (!res.ok) throw new Error('yield_curve.json fetch failed');
+    return res.json(); // { dates: [...], ten2s: [...], ten3m: [...] }
+  }
 
-  try {
-    const vix = await loadJSON('data/vix.json');
+  async function plotYield(data) {
+    const el = document.getElementById('yc');
+    if (!el) return;
 
-    // vix.json can be:
-    //   - an array: [ {...}, {...} ]
-    //   - an object with a field that is an array: { data: [...] } or { series: [...] }
-    let arr = [];
-    if (Array.isArray(vix)) {
-      arr = vix;
-    } else if (vix && Array.isArray(vix.data)) {
-      arr = vix.data;
-    } else if (vix && Array.isArray(vix.series)) {
-      arr = vix.series;
-    } else {
-      // fall back: try any array-like value in object
-      for (const k of Object.keys(vix || {})) {
-        if (Array.isArray(vix[k])) { arr = vix[k]; break; }
-      }
-    }
+    const trace2s = {
+      x: data.dates,
+      y: data.ten2s,
+      mode: 'lines',
+      name: '10s–2s'
+    };
+    const trace3m = {
+      x: data.dates,
+      y: data.ten3m,
+      mode: 'lines',
+      name: '10s–3m'
+    };
+    const layout = {
+      margin: {l:40, r:20, t:20, b:40},
+      yaxis: { title: 'pct pts', zeroline: true, zerolinecolor: '#aaa' },
+      xaxis: { type: 'date' }
+    };
+    Plotly.newPlot(el, [trace2s, trace3m], layout, {responsive: true});
+  }
 
-    const [xs, ys] = parseVixArray(arr);
+  // ---- Load and plot VIX ----
+  async function loadVix() {
+    const res = await fetch(`${BASE}/data/VIX.json${cacheBust()}`);
+    if (!res.ok) throw new Error('VIX.json fetch failed');
+    return res.json(); // { dates: [...], vix: [...] }
+  }
 
-    if (xs.length === 0) {
-      panel.textContent = 'VIX data unavailable';
+  async function plotVix(data) {
+    const el = document.getElementById('vix');
+    const msg = document.getElementById('vixMsg');
+    if (!el) return;
+    if (!data || !data.dates || !data.vix || data.vix.length === 0) {
+      if (msg) msg.textContent = 'VIX data unavailable';
       return;
     }
+    if (msg) msg.textContent = '';
 
-    Plotly.newPlot('vix', [{
-      x: xs,
-      y: ys,
+    const trace = {
+      x: data.dates,
+      y: data.vix,
       mode: 'lines',
-      name: 'VIX',
-      hovertemplate: '%{x|%Y-%m-%d}: %{y:.2f}<extra></extra>'
-    }], {
-      margin: {l: 50, r: 20, t: 10, b: 40},
-      xaxis: {type: 'date'},
-      yaxis: {title: 'level'}
-    }, {displayModeBar: false});
+      name: 'VIX'
+    };
+    const layout = {
+      margin: {l:40, r:20, t:10, b:40},
+      yaxis: { title: '', rangemode: 'tozero' },
+      xaxis: { type: 'date' }
+    };
+    Plotly.newPlot(el, [trace], layout, {responsive: true});
+  }
+
+  // ---- Run all ----
+  try {
+    const summary = await loadSummary();
+    renderPills(summary.snapshot || summary);
+
+    const yc = await loadYield();
+    await plotYield(yc);
+
+    const v = await loadVix();
+    await plotVix(v);
   } catch (e) {
-    panel.textContent = 'VIX data unavailable';
     console.error(e);
   }
-}
-
-/* ---------------- Boot ---------------- */
-
-async function main() {
-  await renderLights();
-  await renderYieldCurve();
-  await renderVIX();
-}
-
-document.addEventListener('DOMContentLoaded', main);
+})();
