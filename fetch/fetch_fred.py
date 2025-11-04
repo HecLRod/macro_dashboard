@@ -20,6 +20,7 @@ SERIES = {
     "BAMLH0A0HYM2": "HY_OAS",         # High Yield OAS
     "BAMLC0A0CM":   "IG_OAS",         # IG OAS
     "BAMLC0A4CBBB": "BBB_OAS",        # BBB OAS
+    "VIXCLS":   "VIX"                 
 }
 
 END = datetime.utcnow().date()
