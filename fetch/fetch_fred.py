@@ -140,7 +140,7 @@ vix_df = fred_df(VIX_SERIES_ID)
 vix_series_clean = vix_df["value"].dropna()
 
 vix_ts = [{"t": d.strftime("%Y-%m-%d"), "v": float(v)} for d, v in vix_series_clean.items()]
-DATA_DIR.joinpath("VIX.json").write_text(json.dumps(vix_ts))
+DATA_DIR.joinpath("vix.json").write_text(json.dumps(vix_ts))
 
 vix_last = last_float(vix_series_clean)
 DATA_DIR.joinpath("vix_snapshot.json").write_text(
